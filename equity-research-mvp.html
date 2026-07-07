@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ledger &amp; Verdict — One-Ticker Equity Research</title>
+<style>
+  :root{
+    --paper:#FFFFFF;
+    --panel:#F6F5F1;
+    --ink:#1A2233;
+    --muted:#5C6675;
+    --hairline:#E3E1DA;
+    --accent:#7A2233;      /* research-memo burgundy */
+    --pos:#1E7A4D;
+    --neg:#B23A2E;
+    --warn:#9A6A00;
+    --serif:Georgia,'Times New Roman',serif;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,'SF Mono','Cascadia Mono',Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55}
+  .wrap{max-width:1060px;margin:0 auto;padding:28px 22px 80px}
+
+  /* ---------- masthead ---------- */
+  .masthead{border-bottom:3px double var(--ink);padding-bottom:18px;margin-bottom:22px}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent)}
+  h1{font-family:var(--serif);font-weight:400;font-size:34px;letter-spacing:-.01em;margin-top:6px}
+  h1 em{font-style:italic;color:var(--accent)}
+  .masthead p{color:var(--muted);margin-top:6px;max-width:640px}
+
+  /* ---------- controls ---------- */
+  .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:20px 0 6px}
+  .field{display:flex;flex-direction:column;gap:4px}
+  .field label{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .field input{font-family:var(--mono);font-size:14px;padding:10px 12px;border:1px solid var(--ink);background:var(--paper);color:var(--ink);border-radius:0;min-width:120px}
+  .field input:focus{outline:2px solid var(--accent);outline-offset:1px}
+  #ticker{width:130px;text-transform:uppercase}
+  #apikey{width:300px}
+  button.run{font-family:var(--mono);font-size:13px;letter-spacing:.08em;text-transform:uppercase;padding:11px 22px;background:var(--ink);color:#fff;border:1px solid var(--ink);cursor:pointer}
+  button.run:hover{background:var(--accent);border-color:var(--accent)}
+  button.run:disabled{opacity:.5;cursor:wait}
+  .hint{font-size:12.5px;color:var(--muted);margin-bottom:18px}
+  .hint a{color:var(--accent)}
+
+  /* ---------- assumptions ---------- */
+  .assumptions{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;background:var(--panel);border:1px solid var(--hairline);padding:12px 14px;margin:14px 0}
+  .assumptions .field input{min-width:90px;width:100px;border-color:var(--hairline);background:#fff}
+  .assumptions .note{font-size:12px;color:var(--muted);flex-basis:100%}
+
+  /* ---------- status ---------- */
+  .status{font-family:var(--mono);font-size:13px;color:var(--muted);padding:8px 0;white-space:pre-line}
+  .status.error{color:var(--neg)}
+
+  /* ---------- report ---------- */
+  #report{display:none}
+  .banner{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;border-top:1px solid var(--ink);border-bottom:1px solid var(--hairline);padding:18px 0;margin-top:8px;flex-wrap:wrap}
+  .co h2{font-family:var(--serif);font-weight:400;font-size:26px}
+  .co .sub{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:2px}
+  .pricebox{font-family:var(--mono);text-align:right}
+  .pricebox .px{font-size:26px}
+  .pricebox .chg{font-size:13px}
+  .up{color:var(--pos)} .down{color:var(--neg)} .flat{color:var(--muted)}
+
+  /* signature: the verdict stamp */
+  .stamp{align-self:center;font-family:var(--mono);font-weight:700;font-size:26px;letter-spacing:.28em;padding:10px 26px 10px 32px;border:3px solid;transform:rotate(-4deg);text-transform:uppercase;opacity:.92}
+  .stamp.buy{color:var(--pos);border-color:var(--pos)}
+  .stamp.sell{color:var(--neg);border-color:var(--neg)}
+  .stamp.hold{color:var(--warn);border-color:var(--warn)}
+
+  section{margin-top:34px}
+  .sec-head{display:flex;align-items:baseline;gap:12px;border-bottom:1px solid var(--ink);padding-bottom:6px;margin-bottom:14px}
+  .sec-head h3{font-family:var(--serif);font-weight:400;font-size:20px}
+  .sec-head .tag{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent)}
+
+  .grid{display:grid;gap:1px;background:var(--hairline);border:1px solid var(--hairline)}
+  .grid-4{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+  .cell{background:var(--paper);padding:12px 14px}
+  .cell .k{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  .cell .v{font-family:var(--mono);font-size:18px;margin-top:4px}
+  .cell .s{font-size:12px;color:var(--muted);margin-top:2px}
+
+  table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:13px}
+  th,td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--hairline)}
+  th:first-child,td:first-child{text-align:left;font-family:var(--sans)}
+  thead th{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--ink)}
+  tr.total td{border-top:1px solid var(--ink);font-weight:700}
+
+  /* scenario bars */
+  .scenbars{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+  .scen{display:grid;grid-template-columns:110px 1fr 190px;gap:12px;align-items:center}
+  .scen .name{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase}
+  .barTrack{position:relative;height:26px;background:var(--panel);border:1px solid var(--hairline)}
+  .barFill{position:absolute;left:0;top:0;bottom:0;background:var(--ink)}
+  .barFill.bear{background:#8A94A3}.barFill.base{background:var(--accent)}.barFill.bull{background:var(--ink)}
+  .marketLine{position:absolute;top:-6px;bottom:-6px;width:2px;background:var(--neg)}
+  .scen .val{font-family:var(--mono);font-size:13px;text-align:right}
+  .legend{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:8px}
+  .legend .dash{color:var(--neg)}
+
+  .rationale li{margin:6px 0 6px 18px}
+  .pts{font-family:var(--mono);font-size:11px;padding:1px 7px;border:1px solid;margin-right:8px}
+  .pts.p{color:var(--pos);border-color:var(--pos)} .pts.n{color:var(--neg);border-color:var(--neg)} .pts.z{color:var(--muted);border-color:var(--muted)}
+
+  .disclaimer{margin-top:44px;border-top:3px double var(--ink);padding-top:14px;font-size:12.5px;color:var(--muted)}
+  @media (max-width:640px){ .scen{grid-template-columns:80px 1fr 120px} h1{font-size:26px} }
+  @media (prefers-reduced-motion:no-preference){
+    #report.show{animation:rise .45s ease}
+    @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">Equity Research Desk · Automated Coverage Initiation</div>
+    <h1>Ledger &amp; <em>Verdict</em></h1>
+    <p>Enter one ticker. The desk pulls the filings, estimates beta, builds a CAPM discount rate, runs a three-scenario DCF, stress-tests financial health — and stamps a call.</p>
+  </header>
+
+  <div class="controls">
+    <div class="field"><label for="ticker">Ticker</label><input id="ticker" placeholder="AAPL" autocomplete="off"/></div>
+    <div class="field"><label for="apikey">FMP API key</label><input id="apikey" placeholder="your key" autocomplete="off"/></div>
+    <button class="run" id="runBtn">Initiate coverage</button>
+  </div>
+  <div class="hint">Data source: Financial Modeling Prep (free key at financialmodelingprep.com). Your key stays in this browser tab only — it is never stored or sent anywhere except FMP.</div>
+
+  <div class="assumptions">
+    <div class="field"><label for="rf">Risk-free rate %</label><input id="rf" type="number" step="0.1" value="4.3"/></div>
+    <div class="field"><label for="erp">Equity risk premium %</label><input id="erp" type="number" step="0.1" value="5.0"/></div>
+    <div class="field"><label for="tg">Terminal growth %</label><input id="tg" type="number" step="0.1" value="2.5"/></div>
+    <div class="field"><label for="yrs">Projection years</label><input id="yrs" type="number" step="1" min="3" max="10" value="5"/></div>
+    <div class="note">Discount rate = risk-free + β × equity risk premium (CAPM). Edit and re-run to see sensitivity — the whole point of a DCF is watching how fragile "fair value" is.</div>
+  </div>
+
+  <div class="status" id="status"></div>
+
+  <main id="report"></main>
+
+</div>
+
+<script>
+"use strict";
+const BASE = "https://financialmodelingprep.com/stable";
+const $ = id => document.getElementById(id);
+
+/* ------------------------- formatting helpers ------------------------- */
+const fmtMoney = v => v==null||isNaN(v) ? "—" :
+  Math.abs(v)>=1e12 ? "$"+(v/1e12).toFixed(2)+"T" :
+  Math.abs(v)>=1e9  ? "$"+(v/1e9 ).toFixed(2)+"B" :
+  Math.abs(v)>=1e6  ? "$"+(v/1e6 ).toFixed(1)+"M" :
+  "$"+Number(v).toLocaleString(undefined,{maximumFractionDigits:0});
+const fmtNum = v => v==null||isNaN(v) ? "—" : Number(v).toLocaleString(undefined,{maximumFractionDigits:0});
+const fmtPx  = v => v==null||isNaN(v) ? "—" : "$"+Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtPct = (v,d=1) => v==null||isNaN(v) ? "—" : (v*100).toFixed(d)+"%";
+const fmtSgn = (v,d=1) => v==null||isNaN(v) ? "—" : (v>=0?"+":"")+(v*100).toFixed(d)+"%";
+const fmtX   = (v,d=2) => v==null||isNaN(v) ? "—" : Number(v).toFixed(d)+"×";
+const esc = s => String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+/* ------------------------------ fetching ------------------------------ */
+async function getJSON(url){
+  const r = await fetch(url);
+  let d; try{ d = await r.json(); }catch(e){ throw new Error("Non-JSON response ("+r.status+")"); }
+  if (d && !Array.isArray(d) && (d["Error Message"]||d.error||d.message))
+    throw new Error(d["Error Message"]||d.error||d.message);
+  return d;
+}
+const sortDesc = arr => [...arr].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+
+async function fetchAll(ticker,key,log){
+  const u = p => `${BASE}/${p}${p.includes("?")?"&":"?"}apikey=${encodeURIComponent(key)}`;
+  log("Fetching statements, quote & profile for "+ticker+" …");
+  const [income,balance,cash,quote,profile] = await Promise.all([
+    getJSON(u(`income-statement?symbol=${ticker}&period=annual&limit=5`)),
+    getJSON(u(`balance-sheet-statement?symbol=${ticker}&period=annual&limit=5`)),
+    getJSON(u(`cash-flow-statement?symbol=${ticker}&period=annual&limit=5`)),
+    getJSON(u(`quote?symbol=${ticker}`)),
+    getJSON(u(`profile?symbol=${ticker}`)).catch(()=>null),
+  ]);
+  if (!Array.isArray(income)||!income.length) throw new Error("No income-statement data — check the ticker and your FMP plan.");
+  if (!Array.isArray(balance)||!balance.length) throw new Error("No balance-sheet data returned.");
+  if (!Array.isArray(cash)||!cash.length) throw new Error("No cash-flow data returned.");
+  if (!Array.isArray(quote)||!quote.length) throw new Error("No quote data returned.");
+
+  // price history for regression beta (best effort — some plans restrict it)
+  let hist=null, spy=null;
+  try{
+    log("Fetching 2y price history for beta regression …");
+    const from = new Date(Date.now()-2*365*86400e3).toISOString().slice(0,10);
+    const norm = d => Array.isArray(d) ? d : (d && d.historical) || [];
+    [hist,spy] = await Promise.all([
+      getJSON(u(`historical-price-eod/full?symbol=${ticker}&from=${from}`)).then(norm),
+      getJSON(u(`historical-price-eod/full?symbol=SPY&from=${from}`)).then(norm),
+    ]);
+  }catch(e){ log("Price history unavailable on this plan — will use FMP's published beta."); }
+
+  return { income:sortDesc(income), balance:sortDesc(balance), cash:sortDesc(cash),
+           quote:quote[0], profile:Array.isArray(profile)&&profile.length?profile[0]:null,
+           hist, spy };
+}
+
+/* ------------------------------- analytics ---------------------------- */
+function regressionBeta(hist,spy){
+  if (!hist||!spy||hist.length<60||spy.length<60) return null;
+  const px = rows => { const m=new Map(); for(const r of rows){ const c=r.adjClose??r.close??r.price; if(r.date&&c!=null) m.set(r.date,+c);} return m; };
+  const a=px(hist), b=px(spy);
+  const dates=[...a.keys()].filter(d=>b.has(d)).sort();
+  if (dates.length<60) return null;
+  const rs=[],rm=[];
+  for(let i=1;i<dates.length;i++){
+    rs.push(a.get(dates[i])/a.get(dates[i-1])-1);
+    rm.push(b.get(dates[i])/b.get(dates[i-1])-1);
+  }
+  const mean=x=>x.reduce((s,v)=>s+v,0)/x.length;
+  const ms=mean(rs), mm=mean(rm);
+  let cov=0,varm=0;
+  for(let i=0;i<rs.length;i++){ cov+=(rs[i]-ms)*(rm[i]-mm); varm+=(rm[i]-mm)**2; }
+  if (!varm) return null;
+  const vol = Math.sqrt(rs.reduce((s,v)=>s+(v-ms)**2,0)/(rs.length-1))*Math.sqrt(252);
+  return { beta:cov/varm, vol, n:rs.length };
+}
+
+function runDCF({latestRevenue,growth,fcfMargin,netDebt,shares,discount,terminal,years}){
+  const revs=[],fcfs=[],pvs=[];
+  let rev=latestRevenue;
+  for(let y=1;y<=years;y++){
+    rev*=(1+growth);
+    const fcf=rev*fcfMargin;
+    revs.push(rev); fcfs.push(fcf); pvs.push(fcf/Math.pow(1+discount,y));
+  }
+  const spread=Math.max(discount-terminal,0.005);           // guard: r must exceed g
+  const tv=fcfs[fcfs.length-1]*(1+terminal)/spread;
+  const tvPV=tv/Math.pow(1+discount,years);
+  const ev=pvs.reduce((s,v)=>s+v,0)+tvPV;
+  const eq=ev-netDebt;
+  return { revs,fcfs,pvs,tvPV,ev,eq, price: shares? eq/shares : null };
+}
+
+function analyze(data,assump){
+  const {income,balance,cash,quote,profile,hist,spy}=data;
+  const inc0=income[0], bal0=balance[0];
+
+  // history: oldest → newest
+  const revs=[...income].reverse().map(r=>r.revenue).filter(v=>v>0);
+  const growths=[]; for(let i=1;i<revs.length;i++) growths.push(revs[i]/revs[i-1]-1);
+  const avgGrowth=growths.length? growths.reduce((s,v)=>s+v,0)/growths.length : 0.03;
+
+  const margins=[];
+  for(const c of cash){
+    let f=c.freeCashFlow; if(f==null) f=(c.operatingCashFlow||0)+(c.capitalExpenditure||0);
+    const m=income.find(i=>i.date===c.date);
+    if(m&&m.revenue) margins.push(f/m.revenue);
+  }
+  const fcfMargin=margins.length? margins.reduce((s,v)=>s+v,0)/margins.length : 0.10;
+
+  const totalDebt=(bal0.shortTermDebt||0)+(bal0.longTermDebt||0);
+  const cashEq=(bal0.cashAndCashEquivalents||0)+(bal0.shortTermInvestments||0);
+  const netDebt=totalDebt-cashEq;
+
+  const price=quote.price;
+  let shares=quote.sharesOutstanding;
+  if(!shares && quote.marketCap && price) shares=quote.marketCap/price;
+  const mktCap=quote.marketCap ?? (shares&&price? shares*price : null);
+
+  // beta: regression first, published second
+  const reg=regressionBeta(hist,spy);
+  const beta = reg?.beta ?? (profile&&profile.beta!=null? +profile.beta : 1.0);
+  const betaSource = reg? `regressed vs SPY, ${reg.n} daily obs` : (profile&&profile.beta!=null? "FMP published" : "default 1.0 (no data)");
+
+  const discount=Math.max(assump.rf + beta*assump.erp, assump.tg+0.02);   // CAPM, kept above g
+
+  const mk = g => runDCF({latestRevenue:revs[revs.length-1],growth:g,fcfMargin,netDebt,shares,
+                          discount,terminal:assump.tg,years:assump.years});
+  const scen={ bear:mk(avgGrowth-0.03), base:mk(avgGrowth), bull:mk(avgGrowth+0.03) };
+  const upside = p => (p&&price)? p/price-1 : null;
+
+  /* ratios & health */
+  const equity=bal0.totalStockholdersEquity;
+  const ratios={
+    pe: quote.pe ?? (inc0.epsDiluted? price/inc0.epsDiluted : null),
+    grossM: inc0.revenue? (inc0.grossProfit??0)/inc0.revenue : null,
+    opM:    inc0.revenue? (inc0.operatingIncome??0)/inc0.revenue : null,
+    netM:   inc0.revenue? (inc0.netIncome??0)/inc0.revenue : null,
+    roe:    equity? inc0.netIncome/equity : null,
+    de:     equity? totalDebt/equity : null,
+    current:(bal0.totalCurrentLiabilities? (bal0.totalCurrentAssets||0)/bal0.totalCurrentLiabilities : null),
+    fcfYield:(mktCap&&margins.length)? (margins[0]*inc0.revenue)/mktCap : null,
+    interestCover:(inc0.interestExpense? (inc0.operatingIncome||0)/Math.abs(inc0.interestExpense) : null),
+  };
+
+  /* Altman Z (original) — best effort with available fields */
+  let z=null;
+  const TA=bal0.totalAssets, TL=bal0.totalLiabilities;
+  if(TA&&TL&&mktCap){
+    const wc=(bal0.totalCurrentAssets||0)-(bal0.totalCurrentLiabilities||0);
+    z=1.2*wc/TA + 1.4*(bal0.retainedEarnings||0)/TA + 3.3*(inc0.operatingIncome||0)/TA
+      + 0.6*mktCap/TL + 1.0*(inc0.revenue||0)/TA;
+  }
+
+  const range52 = (quote.yearHigh&&quote.yearLow&&quote.yearHigh>quote.yearLow)
+      ? (price-quote.yearLow)/(quote.yearHigh-quote.yearLow) : null;
+
+  /* ------------------ recommendation engine ------------------ */
+  const reasons=[]; let score=0;
+  const add=(pts,txt)=>{score+=pts;reasons.push({pts,txt});};
+  const upBase=upside(scen.base.price), upBear=upside(scen.bear.price);
+
+  if(upBase!=null){
+    if(upBase>0.25) add(3,`Base-case DCF implies ${fmtSgn(upBase)} upside — trades well below intrinsic value.`);
+    else if(upBase>0.10) add(2,`Base-case DCF implies ${fmtSgn(upBase)} upside vs market price.`);
+    else if(upBase>-0.10) add(0,`Base-case DCF within ±10% of market price (${fmtSgn(upBase)}) — roughly fairly valued.`);
+    else if(upBase>-0.25) add(-2,`Base-case DCF sits ${fmtSgn(upBase)} below market price — valuation looks stretched.`);
+    else add(-3,`Base-case DCF implies ${fmtSgn(upBase)} downside — priced far above modeled intrinsic value.`);
+  }
+  if(upBear!=null && upBear>0) add(1,`Even the bear case (${fmtSgn(upBear)}) clears the current price — margin of safety.`);
+  if(avgGrowth>0.10) add(1,`Revenue compounding at ${fmtPct(avgGrowth)} avg over the period.`);
+  else if(avgGrowth<0) add(-1,`Revenue is shrinking (${fmtPct(avgGrowth)} avg) — DCF growth assumption is fragile.`);
+  if(fcfMargin>0.15) add(1,`Strong cash conversion: ${fmtPct(fcfMargin)} avg FCF margin.`);
+  else if(fcfMargin<0.03) add(-1,`Thin FCF margin (${fmtPct(fcfMargin)}) leaves little room for error.`);
+  if(ratios.roe!=null){ if(ratios.roe>0.18) add(1,`ROE of ${fmtPct(ratios.roe)} signals efficient capital use.`);
+    else if(ratios.roe<0) add(-1,`Negative ROE (${fmtPct(ratios.roe)}).`); }
+  if(ratios.de!=null){ if(ratios.de>2) add(-1,`Leverage is heavy: debt/equity ${fmtX(ratios.de)}.`);
+    else if(ratios.de<0.5) add(1,`Conservative balance sheet: debt/equity ${fmtX(ratios.de)}.`); }
+  if(ratios.current!=null && ratios.current<1) add(-1,`Current ratio ${fmtX(ratios.current)} — short-term liquidity is tight.`);
+  if(z!=null){ if(z>2.99) add(1,`Altman Z-score ${z.toFixed(2)} — safe zone for distress risk.`);
+    else if(z<1.81) add(-2,`Altman Z-score ${z.toFixed(2)} — distress zone; treat the DCF with caution.`); }
+  if(beta>1.6) add(-1,`High beta (${beta.toFixed(2)}) — expect amplified drawdowns; discount rate already penalizes this.`);
+
+  const verdict = score>=4? "BUY" : score<=-2? "SELL" : "HOLD";
+
+  return { revs,growths,avgGrowth,fcfMargin,netDebt,shares,mktCap,price,
+           beta,betaSource,vol:reg?.vol??null,discount,scen,upside,ratios,z,range52,
+           score,reasons,verdict, inc0,bal0,quote,profile };
+}
+
+/* ------------------------------- rendering ----------------------------- */
+function statementTable(title,rows,data,pctOf){
+  const cols=data.slice(0,5);
+  const years=cols.map(e=>esc(e.fiscalYear||String(e.date||"").slice(0,4)));
+  let h=`<table><thead><tr><th>${esc(title)}</th>${years.map(y=>`<th>${y}</th>`).join("")}</tr></thead><tbody>`;
+  for(const [field,label,total] of rows){
+    h+=`<tr${total?' class="total"':''}><td>${esc(label)}</td>`;
+    for(const e of cols){
+      const v=e[field];
+      h+=`<td>${typeof v==="number" ? (Math.abs(v)>=1e4? fmtNum(v) : v.toFixed(2)) : "—"}</td>`;
+    }
+    h+=`</tr>`;
+  }
+  return h+`</tbody></table>`;
+}
+
+function render(t,A,data){
+  const q=data.quote, prof=data.profile||{};
+  const chg=q.changePercentage!=null? q.changePercentage/100 : (q.changesPercentage!=null? q.changesPercentage/100 : null);
+  const chgCls=chg==null?"flat":chg>=0?"up":"down";
+  const verdictCls=A.verdict.toLowerCase();
+
+  const maxP=Math.max(A.scen.bull.price||0,A.scen.base.price||0,A.scen.bear.price||0,A.price||0)*1.15||1;
+  const bar=(label,cls,res)=>{
+    const w=res.price? Math.max(2,res.price/maxP*100) : 0;
+    const mkt=A.price? A.price/maxP*100 : null;
+    const up=A.upside(res.price);
+    return `<div class="scen">
+      <div class="name">${label}</div>
+      <div class="barTrack"><div class="barFill ${cls}" style="width:${w}%"></div>
+        ${mkt!=null?`<div class="marketLine" style="left:${mkt}%"></div>`:""}</div>
+      <div class="val">${fmtPx(res.price)} <span class="${up>=0?'up':'down'}">(${fmtSgn(up)})</span></div>
+    </div>`;
+  };
+
+  const dcfRows=A.scen.base.revs.map((r,i)=>
+    `<tr><td>Year ${i+1}</td><td>${fmtNum(r)}</td><td>${fmtNum(A.scen.base.fcfs[i])}</td><td>${fmtNum(A.scen.base.pvs[i])}</td></tr>`).join("");
+
+  const cell=(k,v,s="")=>`<div class="cell"><div class="k">${k}</div><div class="v">${v}</div>${s?`<div class="s">${s}</div>`:""}</div>`;
+  const R=A.ratios;
+
+  $("report").innerHTML=`
+    <div class="banner">
+      <div class="co">
+        <h2>${esc(prof.companyName||q.name||t)}</h2>
+        <div class="sub">${esc(t)} · ${esc(prof.sector||"—")} · ${esc(prof.industry||"")} · Mkt cap ${fmtMoney(A.mktCap)}</div>
+      </div>
+      <div class="stamp ${verdictCls}">${A.verdict}</div>
+      <div class="pricebox">
+        <div class="px">${fmtPx(A.price)}</div>
+        <div class="chg ${chgCls}">${chg!=null? fmtSgn(chg)+" today" : ""}</div>
+        <div class="chg flat">52w: ${fmtPx(q.yearLow)} – ${fmtPx(q.yearHigh)}</div>
+      </div>
+    </div>
+
+    <section>
+      <div class="sec-head"><h3>Valuation — three-scenario DCF</h3><span class="tag">Intrinsic value</span></div>
+      <div class="grid grid-4">
+        ${cell("Discount rate (CAPM)",fmtPct(A.discount),`rf ${fmtPct(A.rfIn,1)} + β ${A.beta.toFixed(2)} × ERP ${fmtPct(A.erpIn,1)}`)}
+        ${cell("Avg revenue growth",fmtPct(A.avgGrowth),`${A.revs.length} fiscal years`)}
+        ${cell("Avg FCF margin",fmtPct(A.fcfMargin),"free cash flow / revenue")}
+        ${cell("Net debt",fmtMoney(A.netDebt),"total debt − cash & ST inv.")}
+      </div>
+      <div class="scenbars">
+        ${bar("Bear −3pt","bear",A.scen.bear)}
+        ${bar("Base","base",A.scen.base)}
+        ${bar("Bull +3pt","bull",A.scen.bull)}
+      </div>
+      <div class="legend"><span class="dash">▌</span> red line = current market price ${fmtPx(A.price)}. Bars = DCF-implied share price per scenario.</div>
+      <table style="margin-top:18px">
+        <thead><tr><th>Base-case projection</th><th>Revenue</th><th>Free cash flow</th><th>Present value</th></tr></thead>
+        <tbody>${dcfRows}
+          <tr class="total"><td>Terminal value (PV)</td><td></td><td></td><td>${fmtNum(A.scen.base.tvPV)}</td></tr>
+          <tr class="total"><td>Enterprise value</td><td></td><td></td><td>${fmtNum(A.scen.base.ev)}</td></tr>
+          <tr class="total"><td>Equity value</td><td></td><td></td><td>${fmtNum(A.scen.base.eq)}</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <div class="sec-head"><h3>Quality &amp; profitability</h3><span class="tag">Fundamentals</span></div>
+      <div class="grid grid-4">
+        ${cell("P/E",R.pe!=null?fmtX(R.pe,1):"—")}
+        ${cell("Gross margin",fmtPct(R.grossM))}
+        ${cell("Operating margin",fmtPct(R.opM))}
+        ${cell("Net margin",fmtPct(R.netM))}
+        ${cell("Return on equity",fmtPct(R.roe))}
+        ${cell("FCF yield",fmtPct(R.fcfYield),"latest FCF / market cap")}
+        ${cell("Debt / equity",fmtX(R.de))}
+        ${cell("Current ratio",fmtX(R.current))}
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><h3>Risk desk</h3><span class="tag">Beta · volatility · distress</span></div>
+      <div class="grid grid-4">
+        ${cell("Beta",A.beta.toFixed(2),esc(A.betaSource))}
+        ${cell("Annualized volatility",A.vol!=null?fmtPct(A.vol):"—","σ of daily returns × √252")}
+        ${cell("Altman Z-score",A.z!=null?A.z.toFixed(2):"—",A.z!=null?(A.z>2.99?"safe zone":A.z<1.81?"distress zone":"grey zone"):"insufficient data")}
+        ${cell("52-week positioning",A.range52!=null?fmtPct(A.range52,0):"—","0% = at year low, 100% = at year high")}
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><h3>The call</h3><span class="tag">Score ${A.score>=0?"+":""}${A.score}</span></div>
+      <ul class="rationale">
+        ${A.reasons.map(r=>`<li><span class="pts ${r.pts>0?'p':r.pts<0?'n':'z'}">${r.pts>0?"+":""}${r.pts}</span>${esc(r.txt)}</li>`).join("")}
+      </ul>
+    </section>
+
+    <section>
+      <div class="sec-head"><h3>Source statements</h3><span class="tag">Last ${data.income.length} fiscal years, USD</span></div>
+      ${statementTable("Income statement",[
+        ["revenue","Revenue"],["grossProfit","Gross profit"],["operatingIncome","Operating income"],
+        ["netIncome","Net income",true],["epsDiluted","EPS (diluted)"]],data.income)}
+      <br/>
+      ${statementTable("Balance sheet",[
+        ["cashAndCashEquivalents","Cash & equivalents"],["totalCurrentAssets","Total current assets"],
+        ["totalAssets","Total assets",true],["longTermDebt","Long-term debt"],
+        ["totalLiabilities","Total liabilities",true],["totalStockholdersEquity","Stockholders' equity",true]],data.balance)}
+      <br/>
+      ${statementTable("Cash flow",[
+        ["operatingCashFlow","Operating cash flow"],["capitalExpenditure","Capital expenditure"],
+        ["freeCashFlow","Free cash flow",true]],data.cash)}
+    </section>
+
+    <div class="disclaimer">
+      This is an educational model, not investment advice or a solicitation. DCF outputs are extremely sensitive to
+      growth, discount-rate and terminal assumptions; the verdict is a rules-based score on modeled figures, not a
+      prediction. Verify all figures against primary filings (SEC EDGAR) before acting on anything.
+    </div>`;
+  $("report").style.display="block";
+  $("report").classList.add("show");
+}
+
+/* -------------------------------- main --------------------------------- */
+async function run(){
+  const t=$("ticker").value.trim().toUpperCase();
+  const key=$("apikey").value.trim();
+  const status=$("status");
+  status.classList.remove("error");
+  if(!t||!key){ status.textContent="Enter both a ticker and your FMP API key."; status.classList.add("error"); return; }
+
+  const assump={ rf:+$("rf").value/100, erp:+$("erp").value/100, tg:+$("tg").value/100,
+                 years:Math.min(10,Math.max(3,parseInt($("yrs").value)||5)) };
+  const btn=$("runBtn"); btn.disabled=true;
+  $("report").style.display="none";
+  const log=m=>{status.textContent=m;};
+
+  try{
+    const data=await fetchAll(t,key,log);
+    log("Running DCF, beta regression and scoring …");
+    const A=analyze(data,assump);
+    A.rfIn=assump.rf; A.erpIn=assump.erp;
+    render(t,A,data);
+    log("Coverage initiated · "+new Date().toLocaleString());
+  }catch(e){
+    status.textContent="Could not complete the analysis: "+e.message+
+      "\nCommon causes: invalid API key, ticker not covered on the free plan, or daily request limit reached.";
+    status.classList.add("error");
+  }finally{ btn.disabled=false; }
+}
+$("runBtn").addEventListener("click",run);
+$("ticker").addEventListener("keydown",e=>{ if(e.key==="Enter") run(); });
+$("apikey").addEventListener("keydown",e=>{ if(e.key==="Enter") run(); });
+</script>
+</body>
+</html>
