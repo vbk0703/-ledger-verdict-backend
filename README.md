@@ -1,46 +1,42 @@
-# Ledger & Verdict — backend proxy
+# Ledger & Verdict — Automated Equity Research
 
-Fixes "Failed to fetch": FMP doesn't send CORS headers, so a browser
-calling it directly gets blocked. This tiny FastAPI server calls FMP
-for you and returns clean JSON with CORS enabled.
+A full-stack tool that turns a single stock ticker into a complete
+research memo: financial statements, a 3-scenario DCF valuation,
+CAPM-based discount rate with regressed beta, and a rules-based
+Buy / Hold / Sell verdict — the way a junior equity analyst would
+build a first-pass model.
 
-## Fastest path: Render.com (free tier)
+**Live demo:** [add your frontend hosting link here once deployed, or note "open equity-research-mvp.html locally"]
 
-1. Create a new GitHub repo, add `main.py` and `requirements.txt` from this folder, push.
-2. Go to render.com → New → Web Service → connect that repo.
-3. Settings:
-   - Build command: `pip install -r requirements.txt`
-   - Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-4. Under "Environment", add:
-   - `FMP_API_KEY` = your Financial Modeling Prep key
-5. Deploy. Render gives you a URL like `https://ledger-verdict.onrender.com`.
-6. Paste that URL into the frontend's "Backend URL" field and run a ticker.
+## What it does
 
-Note: Render's free tier sleeps after 15 min idle — first request after
-a break takes ~30s to wake up. That's normal, not a bug.
+- Pulls income statement, balance sheet, cash flow, and live quote data
+- Runs a 5-year DCF with Bear / Base / Bull growth scenarios
+- Calculates beta by regressing 2 years of daily returns against SPY
+  (falls back to published beta if price history is unavailable)
+- Builds the discount rate via CAPM (risk-free rate + β × equity risk premium)
+- Screens financial health: Altman Z-score, debt/equity, current ratio,
+  ROE, margins, FCF yield
+- Scores all of the above into a single Buy / Hold / Sell call, with
+  every point of the reasoning shown — no black box
 
-## Run it locally instead (for testing before you deploy)
+## Architecture
 
-```bash
-pip install fastapi uvicorn httpx --break-system-packages
-export FMP_API_KEY=your_key_here
-uvicorn main:app --reload --port 8000
-```
+- **Frontend:** single-file HTML/CSS/JS (no framework, no build step)
+- **Backend:** FastAPI proxy (`main.py`) — hides the API key server-side
+  and adds CORS so the browser can call it
+- **Data source:** Financial Modeling Prep
 
-Then put `http://localhost:8000` in the frontend's Backend URL field.
-(This only works if you also open the frontend file locally in the
-same browser — it won't reach localhost from the Claude chat preview.)
+## Tech stack
 
-## Alternatives to Render
+Python · FastAPI · httpx · vanilla JavaScript · Financial Modeling Prep API
 
-- **Railway.app** — same idea, similarly generous free tier.
-- **Fly.io** — free tier, a bit more setup (needs a `Dockerfile` or `fly.toml`).
-- **Vercel** — works if you convert `main.py` into a Vercel serverless
-  function instead of a long-running FastAPI app (different structure,
-  ask if you want that version).
+## Run it yourself
 
-## Health check
+See setup instructions in this repo, or deploy the backend free on
+Render.com and point the frontend's "Backend URL" field at your deployment.
 
-Once deployed, visit `https://your-app.onrender.com/api/health` — it
-should return `{"status":"ok","key_configured":true}`. If
-`key_configured` is `false`, the environment variable didn't get set.
+## Disclaimer
+
+Educational project, not investment advice. DCF outputs are highly
+sensitive to growth, discount rate, and terminal value assumptions.
